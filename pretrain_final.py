@@ -120,10 +120,10 @@ def preprocess_audio(audio):
         std = tf.math.reduce_std(mag, axis=1, keepdims=True)
         x_norm = (mag - mean) / (std + 1e-10)
 
-        # 🟩 Corte de frequências acima de 80 bins
+        # Corte de frequências acima de 80 bins
         x_norm = x_norm[:, :80]  
 
-        # 🟩 Downsampling temporal (440 → 220)
+        # Downsampling temporal (440 → 220)
         x_norm = x_norm[::2, :]  
 
         return x_norm
@@ -173,7 +173,7 @@ def load_and_augment(path):
 '''
 def load_and_augment(path):
     path = tf.ensure_shape(path, [])  # garante escalar
-    path = tf.cast(path, tf.string)   # ✅ converte para string explicitamente
+    path = tf.cast(path, tf.string)   # converte para string explicitamente
 
     audio = tf.numpy_function(load_audio_raw, [path], tf.float32)
     audio.set_shape([None])
@@ -530,25 +530,25 @@ def run_pretrain_simclr(optimizer_name='lars', val_every=5):
     warmup_epochs = 5
     tipo_base = "original"
 
-    print("📁 Carregando base controle UA-Speech...")
+    print("Carregando base controle UA-Speech...")
     raw_ds, val_ds = create_augmented_datasets(tipo_base=tipo_base, bs=batch_size, val_split=0.2)
 
-    print("🧠 Inicializando encoder Transformer...")
+    print("Inicializando encoder Transformer...")
     
     encoder_model = EncoderTransformer(num_hid=200, num_head=2, num_feed_forward=400, num_layers_enc=4)
     try:
         encoder_model.load_weights("pre_lj/melhor_modelo.ckpt").expect_partial()
         print("🏋️ Pesos pré-treinados carregados com sucesso.")
         
-        # ✅ Passa um dummy input para buildar o modelo antes de salvar
+        # Passa um dummy input para buildar o modelo antes de salvar
         dummy_input = tf.random.normal([1, 440, 129])  # Compatível com seus espectrogramas
         _ = encoder_model(dummy_input)
-        # ✅ Salvar modelo no formato SavedModel (para Keras 3)
+        # Salvar modelo no formato SavedModel (para Keras 3)
         encoder_model.save("models/encoder_keras3", save_format="tf")
         print("💾 Modelo salvo em formato compatível com Keras 3 em 'models/encoder_keras3/'")
 
     except Exception as e:
-        print(f"⚠️ Erro ao carregar pesos: {e}")
+        print(f"Erro ao carregar pesos: {e}")
 
     simclr_model = SimCLRModel(encoder=encoder_model, projection_dim=projection_dim)
 
@@ -603,8 +603,8 @@ def run_pretrain_simclr(optimizer_name='lars', val_every=5):
             del aug1, aug2, zis, zjs, grads, loss
             gc.collect()
 
-        # 🔍 Validação
-        print("🔎 Validação...")
+        # Validação
+        print("Validação...")
         val_loss = 0.0
         val_steps = 0
         
@@ -630,24 +630,24 @@ def run_pretrain_simclr(optimizer_name='lars', val_every=5):
             #    val_embeds.append(embed)
         
         val_loss /= val_steps
-        print(f"✅ Val Loss: {val_loss:.4f}")
+        print(f"Val Loss: {val_loss:.4f}")
         
-        # 🔸 Salva métricas
+        # Salva métricas
         with open(metrics_path, mode='a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([epoch + 1, float(avg_loss), float(val_loss)])
         
-        # 💾 Salva modelo + t-SNE somente se for necessário
+        # Salva modelo + t-SNE somente se for necessário
         if save_tsne:
             print("💾 Salvando modelo e t-SNE...")
             encoder_model.save_weights(f"ckpt/encoder_{optimizer_name}_epoch{epoch+1}.h5")
             
             #val_embeds = np.concatenate(val_embeds, axis=0)
             #plot_tsne(val_embeds, epoch=epoch+1, save_path_prefix=f"val_tsne_{optimizer_name}")
-            #print(f"🖼️ t-SNE salvo em 'val_tsne_{optimizer_name}_{epoch+1}.png'.")
+            #print(f"t-SNE salvo em 'val_tsne_{optimizer_name}_{epoch+1}.png'.")
         del aug1, aug2, zis, zjs, val_loss
         gc.collect()
-    print("✅ Treinamento finalizado.")
+    print("Treinamento finalizado.")
 
 
 if __name__ == "__main__":
