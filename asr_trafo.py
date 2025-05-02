@@ -279,35 +279,13 @@ class Transformer(tf.keras.Model):
                 for _ in range(num_layers_enc)
             ]
         )
-        '''
-        # Congelar FFN da última layer do encoder se necessário
-        # Freezing the last feed-forward of the encoder
-        last_encoder_layer = self.encoder.layers[-1]
-        for layer in last_encoder_layer.ffn.layers:
-            layer.trainable = fz_last_enc_ffn
-
-        if not fz_last_enc_ffn:
-            print("❄️ Último feed-forward do encoder is FROZEN.")
-        else:
-            print("✅ Último feed-forward do encoder is TRAINABLE.")
-        '''
-        # Congelando as Ãºltimas camadas do codificador
-        #for layer in self.encoder.layers[-2:]:
-        #    layer.trainable = False
-        #    if layer.trainable:
-        #        print(f"Camada {layer} do Encoder: Unfrozen")
-        #    else:
-        #        print(f"Camada {layer} do Encoder: Frozen")
-
-
-          
 
         for i in range(num_layers_dec):
             layer_dec = TransformerDecoder(num_hid, num_head, num_feed_forward)
             layer_dec.trainable = fz_last_dec
             if i == num_layers_dec - 1:  # If it is the last layer
                 layer_dec.ffn.trainable = fz_last_dec_ffn  # Freezes/unfreezes the feed-forward component
-                print(f"Componente FFN da layer decodificadora {i} frozen: {not layer_dec.ffn.trainable}")   
+                print(f"Component FFN of the decoder layer {i} FROZEN: {not layer_dec.ffn.trainable}")   
             setattr(
                 self,
                 f"dec_layer_{i}",
@@ -315,7 +293,7 @@ class Transformer(tf.keras.Model):
             )
             if i == num_layers_dec - 1:  # If it is the last layer
                 layer_dec.trainable = fz_last_dec  # Freezes/unfreezes the last decoder layer
-            print(f"Decoder layer {i} congelada: {not layer_dec.trainable}")   
+            print(f"Decoder layer {i} FROZEN: {not layer_dec.trainable}")   
             
         self.classifier = layers.Dense(num_classes)
 
