@@ -79,6 +79,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.callbacks import TensorBoard
 import datetime
 import random
+import jiwer
 import keras
 from keras import layers
 from keras.models import load_model
@@ -161,10 +162,10 @@ class TransformerEncoder(layers.Layer):
         self.att = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
         self.ffn = keras.Sequential(
             [
-                layers.Dense(feed_forward_dim, activation="relu"),
-                layers.Dense(embed_dim),
-                #layers.SeparableConv1D(feed_forward_dim, 3, activation='relu', padding='same'),
-                #layers.SeparableConv1D(embed_dim, 3, padding='same'),
+                #layers.Dense(feed_forward_dim, activation="relu"),
+                #layers.Dense(embed_dim),
+                layers.SeparableConv1D(feed_forward_dim, 3, activation='relu', padding='same'),
+                layers.SeparableConv1D(embed_dim, 3, padding='same'),
             ]
         )
         self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
@@ -255,8 +256,8 @@ class Transformer(tf.keras.Model):
         num_feed_forward=128,
         source_maxlen=100,
         target_maxlen=100,
-        num_layers_enc=4,
-        num_layers_dec=1,
+        num_layers_enc=5,
+        num_layers_dec=3,
         num_classes=34,
     ):
         super().__init__()
@@ -303,7 +304,7 @@ class Transformer(tf.keras.Model):
 
         for i in range(num_layers_dec):
             layer_dec = TransformerDecoder(num_hid, num_head, num_feed_forward)
-            layer_dec.trainable = fz_last_dec
+            layer_dec.trainable = True
             if i == num_layers_dec - 1:  # Se for a última camada
                 layer_dec.ffn.trainable = fz_last_dec_ffn  # Congela/desconhgela o componente feed forward
                 print(f"Componente FFN da camada decodificadora {i} congelado: {not layer_dec.ffn.trainable}")   
@@ -611,7 +612,8 @@ elif base == 'LJ':
     ds = create_tf_dataset(train_data, bs=64)
     val_ds = create_tf_dataset(test_data, bs=64)
 
-else: 
+else:
+    '''
     train_data = []
     test_data = []
     for item in data:
@@ -629,11 +631,38 @@ else:
     ds = create_tf_dataset(train_data, bs=64)
     val_ds = create_tf_dataset(test_data, bs=64)
 
+    '''
+    train_data = []
+    b3_test_data = []
 
+    for item in data:
+        if "B3" in item["audio"]:
+            b3_test_data.append(item)
+        else:
+            train_data.append(item)
 
-print(train_data[0:5])
+    # Limitar se necessário (tx < 1.0), aqui mantido como 1 para usar todos os dados disponíveis
+    tx = 1.0
+    train_data = train_data[:int(len(train_data) * tx)]
+    b3_test_data = b3_test_data[:int(len(b3_test_data) * tx)]
 
-print(test_data[0:5])
+    # Embaralhar para garantir distribuição aleatória
+    import random
+    random.shuffle(train_data)
+
+    # Particionar 80/20 em treino e validação
+    split_index = int(0.8 * len(train_data))
+    train_split = train_data[:split_index]
+    val_split = train_data[split_index:]
+
+    # Criar datasets
+    ds = create_tf_dataset(train_split, bs=64)       # Treino
+    val_ds = create_tf_dataset(val_split, bs=64)     # Validação
+    test_ds = create_tf_dataset(b3_test_data, bs=64) # Teste com prefixo B3
+
+print(train_split[0:5])
+
+print(b3_test_data[0:5])
 
 
 # ## Callbacks to display predictions
@@ -685,8 +714,8 @@ class DisplayOutputs(keras.callbacks.Callback):
             print('WRA = ', round(wra * 100, 2), '%' )
             wras.append(wra)
             
-        maximo = max(wras)
-        print('O valor mÃ¡ximo Ã©:', maximo)
+        max_wra = max(wras)
+        print('The maximum WRA is:', max_wra)
         #print('base: ', base, 'rotina: ',  os.path.basename(__file__))
         print('base: ', base, 'rotina: ', tipo_base)
         with open(base + "_" + tipo_base + '_wras.csv', 'a') as f:
@@ -756,8 +785,8 @@ model = Transformer(
     num_head=2,
     num_feed_forward=400,
     target_maxlen=max_target_len,
-    num_layers_enc=4,
-    num_layers_dec=1,
+    num_layers_enc=5,
+    num_layers_dec=3,
     num_classes=34,
 )
 loss_fn = tf.keras.losses.CategoricalCrossentropy(
@@ -775,6 +804,7 @@ learning_rate = CustomSchedule(
 )
 optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.8, beta_2=0.9)
 
+# Carregar pesos do encoder pos pretreino ( UPSTREAM ) - comente o bloco que carrega os pesos da LJSpeech (abaixo)
 source_dummy = tf.zeros((1, 2754, 129))
 target_dummy = tf.zeros((1, 200), dtype=tf.int32)
 _ = model((source_dummy, target_dummy))  # inicializa todas as variáveis
@@ -784,6 +814,51 @@ if pre_train != "":
     model.encoder.load_weights(pre_train_path)  # <- carrega somente os pesos do encoder
     print(f"Pesos do encoder carregados de {pre_train_path}")
     
+'''
+# Carrega pesos da LJSpeech para baseline - descomente esse bloco e comente o bloco anterior
+if pre_train != "":
+    #pre_train = 'pre_lj\\' + pre_train
+    pre_train = 'ckpt\\' + pre_train
+    model.load_weights(pre_train)
+    print(f"Modelo Carregado {pre_train}") 
+'''
+
+'''
+
+#====================Freeze all encoder layers except the last one==================================
+# Configurações
+fz_encoder_layers = False  # True para deixar os encoders treináveis, False para congelá-los
+#fz_last_enc_ffn = True  # True para tornar a última FFN treinável, False para congelá-la
+
+# Itera sobre todas as camadas do encoder, exceto a última
+for i, encoder_layer in enumerate(model.encoder.layers[:-1]):  # Exclui a última camada
+    encoder_layer.trainable = fz_encoder_layers  # Congela ou libera a camada inteira
+    encoder_status = "✅ TREINÁVEL" if fz_encoder_layers else "🧊 CONGELADA"
+    print(f"🧱 A camada completa {i} do encoder está {encoder_status}.")
+
+    # Verifica se a camada tem atributo 'ffn' antes de acessar
+    if hasattr(encoder_layer, 'ffn'):
+        for sub_layer in encoder_layer.ffn.layers:
+            sub_layer.trainable = False  # Exemplo: mantém as FFNs congeladas
+        print(f"   🔄 A FFN da camada {i} do encoder está 🧊 CONGELADA.")
+
+# Tratamento para a última camada do encoder
+last_encoder_layer = model.encoder.layers[-1]
+
+# Congelar ou liberar FFN da última camada
+if hasattr(last_encoder_layer, 'ffn'):  # Garante que o atributo 'ffn' existe
+    for layer in last_encoder_layer.ffn.layers:
+        layer.trainable = fz_last_enc_ffn
+        ffn_status = "✅ TREINÁVEL" if fz_last_enc_ffn else "🧊 CONGELADA"
+    print(f"🔄 A FFN da última camada do encoder está {ffn_status}.")
+
+# Configurar a última camada inteira (opcional)
+last_encoder_layer.trainable = True  # Pode-se ajustar toda a camada também
+print(f"🧱 A última camada do encoder está como um bloco completo ✅ TREINÁVEL.")
+
+#===================================================================================================
+'''
+
 # ✅ Congela FFN da última camada do encoder (agora que os pesos foram carregados)
 last_encoder_layer = model.encoder.layers[-1]
 for layer in last_encoder_layer.ffn.layers:
@@ -793,31 +868,135 @@ if not fz_last_enc_ffn:
     print("❄️ Último feed-forward do encoder está CONGELADO.")
 else:
     print("✅ Último feed-forward do encoder está TREINÁVEL.")
-'''
-if pre_train != "":
-    #pre_train = 'pre_lj\\' + pre_train
-    pre_train = 'ckpt\\' + pre_train
-    model.load_weights(pre_train)
-    print(f"Modelo Carregado {pre_train}") 
-'''
+
+
 model.compile(optimizer=optimizer, loss=loss_fn)
 
 log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=5, write_graph=True, write_images=True)
 
+# === CRIAR PASTA DE RESULTADOS DO FALANTE === #
+results_dir = os.path.join('results', base)
+os.makedirs(results_dir, exist_ok=True)
+print(f"📂 Diretório de resultados criado: {results_dir}")
 
-checkpoint = ModelCheckpoint('melhor_modelo.ckpt',  # nome do arquivo
+# Caminho onde o modelo será salvo
+checkpoint_path = os.path.join(results_dir, f"{base}_melhor_modelo.ckpt")
+
+# Atualizado para salvar no diretório correto e com o nome do falante
+checkpoint = ModelCheckpoint(
+    checkpoint_path,         # nome do arquivo dentro da pasta
+    monitor='val_loss',       # métrica para monitorar
+    verbose=1, 
+    save_best_only=True,      # salva apenas o melhor modelo
+    mode='min',               # 'min' para minimizar a 'val_loss'
+    save_weights_only=True    # salva apenas os pesos do modelo
+)
+
+
+'''
+checkpoint = ModelCheckpoint(f'{base}_melhor_modelo.ckpt',  # nome do arquivo
                              monitor='val_loss',  # mÃ©trica para monitorar
                              verbose=1, 
                              save_best_only=True,  # salva apenas o melhor modelo
                              mode='min',  # 'min' para minimizar a 'val_loss'
                              save_weights_only=True)  # salva apenas os pesos do modelo
 
-
+'''
 
 history = model.fit(ds, validation_data=val_ds, callbacks=[display_cb, checkpoint, tensorboard_callback], epochs=epocas)
 model.summary()
 print(base)
+
+# === RECALCULANDO COM MELHOR MODELO === #
+model.load_weights(checkpoint_path)
+
+# Função para calcular WER, CER e WAR
+def evaluate_model(model, test_ds, idx_to_char):
+    ground_truths = []
+    predictions = []
+
+    for batch in test_ds:
+        source = batch["source"]
+        target = batch["target"]
+        preds = model.generate(source, target_start_token_idx=2)  # <token
+        preds = preds.numpy()
+
+        for i in range(len(source)):
+            target_text = "".join([idx_to_char[_] for _ in target[i, :]]).replace('-', '').replace('<', '').replace('>', '').strip()
+            prediction = ""
+            for idx in preds[i, :]:
+                prediction += idx_to_char[idx]
+                if idx == 3:  # > token
+                    break
+            prediction = prediction.replace('<', '').replace('>', '').replace('-', '').strip()
+
+            ground_truths.append(target_text)
+            predictions.append(prediction)
+
+    return ground_truths, predictions
+
+# Avaliar o modelo
+ground_truths, predictions = evaluate_model(model, test_ds, idx_to_char)
+
+# Calcular métricas
+wer = jiwer.wer(ground_truths, predictions)
+cer = jiwer.cer(ground_truths, predictions)
+
+# WAR (Word Accuracy Rate)
+war = 1 - wer
+
+print(f"✅ WER: {wer:.4f}")
+print(f"✅ CER: {cer:.4f}")
+print(f"✅ WAR: {war:.4f}")
+
+# Salvar os resultados em arquivos
+import pandas as pd
+
+# Criar DataFrame
+df_metrics = pd.DataFrame({
+    'GroundTruth': ground_truths,
+    'Prediction': predictions
+})
+
+# Caminhos de salvamento
+wer_csv_path = os.path.join(results_dir, f"{base}_wer.csv")
+cer_csv_path = os.path.join(results_dir, f"{base}_cer.csv")
+war_csv_path = os.path.join(results_dir, f"{base}_war.csv")
+
+wer_txt_path = os.path.join(results_dir, f"{base}_wer.txt")
+cer_txt_path = os.path.join(results_dir, f"{base}_cer.txt")
+war_txt_path = os.path.join(results_dir, f"{base}_war.txt")
+
+# Salvar métricas
+with open(wer_txt_path, "w") as f:
+    f.write(f"WER: {wer:.4f}\n")
+with open(cer_txt_path, "w") as f:
+    f.write(f"CER: {cer:.4f}\n")
+with open(war_txt_path, "w") as f:
+    f.write(f"WAR: {war:.4f}\n")
+
+# Salvar predições detalhadas
+df_metrics.to_csv(wer_csv_path, index=False)
+
+# Criar DataFrame simples só com CER (texto inteiro)
+df_cer = pd.DataFrame({
+    'GroundTruth': [" ".join(ground_truths)],
+    'Prediction': [" ".join(predictions)],
+    'CER': [cer]
+})
+df_cer.to_csv(cer_csv_path, index=False)
+
+# Criar DataFrame simples para WAR
+df_war = pd.DataFrame({
+    'GroundTruth': [" ".join(ground_truths)],
+    'Prediction': [" ".join(predictions)],
+    'WAR': [war]
+})
+df_war.to_csv(war_csv_path, index=False)
+
+print(f"📄 Resultados salvos em {results_dir}")
+
 
 '''
 In practice, you should train for around 100 epochs or more.
@@ -841,11 +1020,11 @@ prediction: <under the introus for may monee, nin the sixty,>
 # In[ ]:
 
 
-def compute_word_accuracy(model, val_ds, idx_to_char):
+def compute_word_accuracy(model, test_ds, idx_to_char):
     total_words = 0
     correct_words = 0
     
-    for batch in val_ds:
+    for batch in test_ds:
         source = batch["source"]
         target = batch["target"]
         preds = model.generate(source, target_start_token_idx=2)  # Adjust the start token index as per your vocabulary
@@ -867,9 +1046,9 @@ def compute_word_accuracy(model, val_ds, idx_to_char):
     accuracy = correct_words / total_words if total_words > 0 else 0
     return accuracy
     
-model.load_weights('melhor_modelo.ckpt')
+model.load_weights(f'results\{base}\{base}_melhor_modelo.ckpt')
 
-word_accuracy = compute_word_accuracy(model, val_ds, idx_to_char)
+word_accuracy = compute_word_accuracy(model, test_ds, idx_to_char)
 print("Word Accuracy:", word_accuracy)
 
 with open("resultados.txt", "a") as file:
