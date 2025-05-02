@@ -47,7 +47,7 @@ def str_to_bool(s):
 if __name__ == "__main__":
     # Checks if at least one argument was provided
     if len(sys.argv) < 2:
-        print("Usage: python asr_trafo.py <diretório_da_base_de_dados> <tipo_da_base: original, aug, aug_prop, aug_plus_prop><ffn do ultimo decoder treinável?> <ultimo decoder trainable?> <ffn do ultimo encoder treinável?> <epochs> <file pre treino>")
+        print("Usage: python asr_trafo.py <dataset directory> <dataset type: original, aug, aug_prop, aug_plus_prop><last decoder FFN trainable?> <ultimo decoder trainable?> <last encoder FFN trainable?> <epochs> <file pre treino>")
         sys.exit(1)
 
     # Obtém os argumentos da linha de comando
@@ -98,11 +98,11 @@ set_seed(42)
 # In[77]:
 
 
-# Lista todos os dispositivos fÃ­sicos do tipo 'GPU'
-devices = tf.config.list_physical_devices('GPU')
-print(len(devices))  # Se o result for maior que 0, uma GPU estÃ¡ sendo usada
 
-# Verifica se o TensorFlow foi construÃ­do com suporte a CUDA
+devices = tf.config.list_physical_devices('GPU')
+print(len(devices))  
+
+
 print(tf.test.is_built_with_cuda())
 
   
@@ -305,7 +305,7 @@ class Transformer(tf.keras.Model):
         for i in range(num_layers_dec):
             layer_dec = TransformerDecoder(num_hid, num_head, num_feed_forward)
             layer_dec.trainable = fz_last_dec
-            if i == num_layers_dec - 1:  # Se for a última layer
+            if i == num_layers_dec - 1:  # If it is the last layer
                 layer_dec.ffn.trainable = fz_last_dec_ffn  # Freezes/unfreezes the feed-forward component
                 print(f"Componente FFN da layer decodificadora {i} frozen: {not layer_dec.ffn.trainable}")   
             setattr(
@@ -313,8 +313,8 @@ class Transformer(tf.keras.Model):
                 f"dec_layer_{i}",
                 layer_dec,
             )
-            if i == num_layers_dec - 1:  # Se for a última layer
-                layer_dec.trainable = fz_last_dec  # Congela/descongela a ultima layer decodificadora
+            if i == num_layers_dec - 1:  # If it is the last layer
+                layer_dec.trainable = fz_last_dec  # Freezes/unfreezes the last decoder layer
             print(f"Decoder layer {i} congelada: {not layer_dec.trainable}")   
             
         self.classifier = layers.Dense(num_classes)
@@ -447,7 +447,7 @@ elif base_type == 'original':
     # DicionÃ¡rio para armazenar os textos
     id_to_transcript = {}
 
-    # FunÃ§Ã£o para ler os arquivos de transcriÃ§Ã£o
+    # Function to read the transcription files
     def read_transcript(file_path):
         with open(file_path, encoding="utf-8") as f:
             for line in f:
@@ -455,7 +455,7 @@ elif base_type == 'original':
                 text = line.strip().split("|")[1]
                 id_to_transcript[id] = text
 
-    # Leia os arquivos de transcriÃ§Ã£o para ambas as bases de data
+    # Reads the transcription files for databases
     read_transcript(os.path.join(save_path, "/mnt/u/home/gracelli/databases/uaspeech/dysarthric/wav_files/original/" + dataset_base + "/ua_transcript.txt"))
     #read_transcript(os.path.join(saveto_aug, "/mnt/u/home/gracelli/databases/uaspeech/dysarthric/wav_files/" + base_type + "/" + dataset_base + "/ua_transcript.txt"))
 
@@ -472,19 +472,19 @@ elif base_type == 'original':
 else: 
 
     save_path = "/mnt/u/home/gracelli/databases/uaspeech/dysarthric/wav_files/original/" + dataset_base
-    saveto_aug = "/mnt/u/home/gracelli/databases/uaspeech/control/wav_files/" + base_type + "/" + dataset_base
+    #saveto_aug = "/mnt/u/home/gracelli/databases/uaspeech/control/wav_files/" + base_type + "/" + dataset_base
 
-    # Get all .wav files em ambos os diretÃ³rios
+    # Get all .wav files in 
     wav_files = glob("{}/**/*.wav".format(save_path), recursive=True)
     wavs_aug = glob("{}/**/*.wav".format(saveto_aug), recursive=True)
 
     # Combine the lists of files .wav
     wav_files = wav_files + wavs_aug
 
-    # DicionÃ¡rio para armazenar os textos
+    # Dictionary to armazenate texts
     id_to_transcript = {}
 
-    # FunÃ§Ã£o para ler os arquivos de transcriÃ§Ã£o
+    # Function to read transcription files
     def read_transcript(file_path):
         with open(file_path, encoding="utf-8") as f:
             for line in f:
@@ -492,7 +492,7 @@ else:
                 text = line.strip().split("|")[1]
                 id_to_transcript[id] = text
 
-    # Leia os arquivos de transcriÃ§Ã£o para ambas as bases de data
+    # Reads the transcription files for databases
     read_transcript(os.path.join(save_path, "/mnt/u/home/gracelli/databases/uaspeech/dysarthric/wav_files/original/" + dataset_base + "/ua_transcript.txt"))
     read_transcript(os.path.join(saveto_aug, "/mnt/u/home/gracelli/databases/uaspeech/dysarthric/wav_files/" + base_type + "/" + dataset_base + "/ua_transcript.txt"))
 
@@ -641,7 +641,7 @@ else:
         else:
             train_data.append(item)
 
-    # Limitar se necessário (tx_ratio < 1.0), aqui mantido como 1 para usar todos os data disponíveis
+    # Limitate for tests (tx_ratio < 1.0), "1.0" uses all dataset
     tx_ratio = 1.0
     train_data = train_data[:int(len(train_data) * tx_ratio)]
     b3_test_dataset = b3_test_dataset[:int(len(b3_test_dataset) * tx_ratio)]
@@ -696,8 +696,9 @@ class DisplayOutputs(keras.callbacks.Callback):
         same=0
         results={}
         wras = []
+        max_wra_list = []
         wra = 0
-        len_preds = len(preds)  # PrÃ©-calcule len(preds)
+        len_preds = len(preds)  # pre-calcule len(preds)
         for i in range(bs):
             target_text = "".join([self.idx_to_char[_] for _ in target[i, :]])
             prediction = ""
@@ -706,21 +707,24 @@ class DisplayOutputs(keras.callbacks.Callback):
                 if idx == self.target_end_token_idx:
                     break
             print(f"target:     {target_text.replace('-','')}")
-            print(f"prediction: {prediction}/n")
+            print(f"prediction: {prediction}
+")
             results[i] = {'target': target_text.replace('-',''), 'prediction': prediction}
             if results[i]['target'] == results[i]['prediction']:
                 same += 1
-                wra = same/len_preds  # Reutilize len_preds
+                wra = same/len_preds  # Reuse len_preds
             print('WRA = ', round(wra * 100, 2), '%' )
             wras.append(wra)
             
-        maximo = max(wras)
-        print('O valor mÃ¡ximo Ã©:', maximo)
-        #print('dataset_base: ', dataset_base, 'rotina: ',  os.path.basename(__file__))
-        print('dataset_base: ', dataset_base, 'rotina: ', base_type)
+        max_wra = max(wras)
+        max_wra_list = append(max_wra)
+        print('The maximum value is: ', max_wra)
+        #print('dataset_base: ', dataset_base, 'routine: ',  os.path.basename(__file__))
+        print('dataset_base: ', dataset_base, 'routine: ', base_type)
         with open(dataset_base + "_" + base_type + '_wras.csv', 'a') as f:
-            for i, wra in enumerate(wras, start=1):
-                f.write(f'{i}, {wra}/n')
+            for i, wra in enumerate(max_wra_list, start=1):
+                f.write(f'{i}, {wra}
+')
 
 
 # ## Learning rate schedule
@@ -806,42 +810,43 @@ optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.8, beta_2=0.9)
 
 source_dummy = tf.zeros((1, 2754, 129))
 target_dummy = tf.zeros((1, 200), dtype=tf.int32)
-_ = model((source_dummy, target_dummy))  # inicializa todas as variáveis
+_ = model((source_dummy, target_dummy))  # initialize all variables
 
 if pretrained_weights != "":
     pre_train_path = 'ckpt/' + pretrained_weights
-    model.encoder.load_weights(pre_train_path)  # <- carrega somente os pesos do encoder
+    model.encoder.load_weights(pre_train_path)  # <- loads only encoder weights
     print(f"Encoder weights loaded from {pre_train_path}")
+    
 '''
 # Settings
-fz_encoder_layers = False  # True para deixar os encoders treináveis, False para congelá-los
-#fz_last_enc_ffn = True  # True para tornar a última FFN treinável, False para congelá-la
+fz_encoder_layers = False  # True to make encoders trainable, False to freeze them
+#fz_last_enc_ffn = True  # True to make the last FFN trainable, False to freeze it
 
-# Itera sobre todas as camadas do encoder, exceto a última
-for i, encoder_layer in enumerate(model.encoder.layers[:-1]):  # Exclui a última layer
-    encoder_layer.trainable = fz_encoder_layers  # Congela ou libera a layer inteira
-    encoder_status = "✅ TREINÁVEL" if fz_encoder_layers else "🧊 CONGELADA"
-    print(f"🧱 A layer completa {i} do encoder está {encoder_status}.")
+# Iterate over all encoder layers except the last one
+for i, encoder_layer in enumerate(model.encoder.layers[:-1]):  # Excludes the last layer
+    encoder_layer.trainable = fz_encoder_layers  # Freezes or unfreezes the entire layer
+    encoder_status = "✅ TRAINABLE" if fz_encoder_layers else "🧊 FROZEN"
+    print(f"🧱 The complete encoder layer {i} is {encoder_status}.")
 
-    # Verifica se a layer tem atributo 'ffn' antes de acessar
+    # Check if the layer has the 'ffn' attribute before accessing it
     if hasattr(encoder_layer, 'ffn'):
         for sub_layer in encoder_layer.ffn.layers:
-            sub_layer.trainable = False  # Exemplo: mantém as FFNs congeladas
-        print(f"   🔄 A FFN da layer {i} do encoder está 🧊 CONGELADA.")
+            sub_layer.trainable = False  # Example: keeps FFNs frozen
+        print(f"   🔄 The FFN of encoder layer {i} is 🧊 FROZEN.")
 
-# Tratamento para a última layer do encoder
+# Handling the last encoder layer
 last_encoder_layer = model.encoder.layers[-1]
 
-# Congelar ou liberar FFN da última layer
-if hasattr(last_encoder_layer, 'ffn'):  # Garante que o atributo 'ffn' existe
+# Freeze or unfreeze FFN of the last layer
+if hasattr(last_encoder_layer, 'ffn'):  # Ensure the 'ffn' attribute exists
     for layer in last_encoder_layer.ffn.layers:
         layer.trainable = fz_last_enc_ffn
-        ffn_status = "✅ TREINÁVEL" if fz_last_enc_ffn else "🧊 CONGELADA"
-    print(f"🔄 A FFN da última layer do encoder está {ffn_status}.")
+        ffn_status = "✅ TRAINABLE" if fz_last_enc_ffn else "🧊 FROZEN"
+    print(f"🔄 The FFN of the last encoder layer is {ffn_status}.")
 
-# Configurar a última layer inteira (opcional)
-last_encoder_layer.trainable = True  # Pode-se ajustar toda a layer também
-print(f"🧱 A última layer do encoder está como um bloco completo ✅ TREINÁVEL.")
+# Configure the entire last layer (optional)
+last_encoder_layer.trainable = True  # Can adjust the entire layer as well
+print(f"🧱 The last encoder layer is fully ✅ TRAINABLE.")
 '''
 
 
@@ -851,9 +856,9 @@ for layer in last_encoder_layer.ffn.layers:
     layer.trainable = fz_last_enc_ffn
 
 if not fz_last_enc_ffn:
-    print("❄️ Último feed-forward do encoder is FROZEN.")
+    print("❄️ Encoder´s last FFN is FROZEN.")
 else:
-    print("✅ Último feed-forward do encoder is TRAINABLE.")
+    print("✅ Encoder´s last FFN is TRAINABLE.")
 
 
 
@@ -862,22 +867,21 @@ if pretrained_weights != "":
     #pretrained_weights = 'pre_lj/' + pretrained_weights
     pretrained_weights = 'ckpt/' + pretrained_weights
     model.load_weights(pretrained_weights)
-    print(f"Modelo Carregado {pretrained_weights}") 
+    print(f"Model Loaded {pretrained_weights}") 
 '''
 model.compile(optimizer=optimizer, loss=loss_fn)
 
 log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=5, write_graph=True, write_images=True)
 
-# === CRIAR PASTA DE RESULTADOS DO FALANTE === #
+# === Create folders for each speaker results === #
 results_dir = os.path.join('results', dataset_base)
 os.makedirs(results_dir, exist_ok=True)
-print(f"📂 Diretório de results criado: {results_dir}")
+print(f"📂 Results directory created: {results_dir}")
 
-# Caminho onde o modelo será salvo
-checkpoint_path = os.path.join(results_dir, f"{dataset_base}_melhor_modelo.ckpt")
+# Path where the model will be saved
+checkpoint_path = os.path.join(results_dir, f"{dataset_base}_best_model.ckpt")
 
-# Atualizado para salvar no diretório correto e com o nome do falante
 checkpoint = ModelCheckpoint(
     checkpoint_path,         # file name inside the folder
     monitor='val_loss',       # metric to monitor
@@ -889,7 +893,7 @@ checkpoint = ModelCheckpoint(
 
 
 '''
-checkpoint = ModelCheckpoint(f'{dataset_base}_melhor_modelo.ckpt',  # nome do file
+checkpoint = ModelCheckpoint(f'{dataset_base}_best_model.ckpt',  # file name
                              monitor='val_loss',  # mÃ©trica para monitorar
                              verbose=1, 
                              save_best_only=True,  # saves only the best model
@@ -902,7 +906,7 @@ history = model.fit(train_dataset, validation_data=val_dataset, callbacks=[displ
 model.summary()
 print(dataset_base)
 
-# === RECALCULANDO COM MELHOR MODELO === #
+# === Load with best model === #
 model.load_weights(checkpoint_path)
 
 # Function to compute WER, CER e WAR
@@ -930,10 +934,10 @@ def evaluate_model(model, test_ds, idx_to_char):
 
     return ground_truths, predictions
 
-# Avaliar o modelo
+# Evaluate model
 ground_truths, predictions = evaluate_model(model, val_dataset, idx_to_char)
 
-# Calcular métricas
+# Calculate metrics
 wer = jiwer.wer(ground_truths, predictions)
 cer = jiwer.cer(ground_truths, predictions)
 
@@ -944,16 +948,16 @@ print(f"✅ WER: {wer:.4f}")
 print(f"✅ CER: {cer:.4f}")
 print(f"✅ WAR: {war:.4f}")
 
-# Salvar os results em arquivos
+# Save results to files
 import pandas as pd
 
-# Criar DataFrame
+# Create DataFrame
 df_metrics = pd.DataFrame({
     'GroundTruth': ground_truths,
     'Prediction': predictions
 })
 
-# Caminhos de salvamento
+# Save paths
 wer_csv_path = os.path.join(results_dir, f"{dataset_base}_wer.csv")
 cer_csv_path = os.path.join(results_dir, f"{dataset_base}_cer.csv")
 war_csv_path = os.path.join(results_dir, f"{dataset_base}_war.csv")
@@ -962,18 +966,21 @@ wer_txt_path = os.path.join(results_dir, f"{dataset_base}_wer.txt")
 cer_txt_path = os.path.join(results_dir, f"{dataset_base}_cer.txt")
 war_txt_path = os.path.join(results_dir, f"{dataset_base}_war.txt")
 
-# Salvar métricas
+# Save metrics
 with open(wer_txt_path, "w") as f:
-    f.write(f"WER: {wer:.4f}/n")
+    f.write(f"WER: {wer:.4f}
+")
 with open(cer_txt_path, "w") as f:
-    f.write(f"CER: {cer:.4f}/n")
+    f.write(f"CER: {cer:.4f}
+")
 with open(war_txt_path, "w") as f:
-    f.write(f"WAR: {war:.4f}/n")
+    f.write(f"WAR: {war:.4f}
+")
 
-# Salvar predições detalhadas
+# Save detailed predictions
 df_metrics.to_csv(wer_csv_path, index=False)
 
-# Criar DataFrame simples só com CER (text inteiro)
+# Create simple DataFrame simples only CER (entire text)
 df_cer = pd.DataFrame({
     'GroundTruth': [" ".join(ground_truths)],
     'Prediction': [" ".join(predictions)],
@@ -981,7 +988,7 @@ df_cer = pd.DataFrame({
 })
 df_cer.to_csv(cer_csv_path, index=False)
 
-# Criar DataFrame simples para WAR
+# Create simple DataFrame for WAR
 df_war = pd.DataFrame({
     'GroundTruth': [" ".join(ground_truths)],
     'Prediction': [" ".join(predictions)],
@@ -1013,7 +1020,7 @@ prediction: <under the introus for may monee, nin the sixty,>
 
 # In[ ]:
 
-
+#Group the speakers' WARs and save in txt file
 def compute_word_accuracy(model, test_ds, idx_to_char):
     total_words = 0
     correct_words = 0
@@ -1040,10 +1047,11 @@ def compute_word_accuracy(model, test_ds, idx_to_char):
     accuracy = correct_words / total_words if total_words > 0 else 0
     return accuracy
     
-model.load_weights(f'results/{dataset_base}/{dataset_base}_melhor_modelo.ckpt')
+model.load_weights(f'results/{dataset_base}/{dataset_base}_best_model.ckpt')
 
 word_accuracy = compute_word_accuracy(model, val_dataset, idx_to_char)
 print("Word Accuracy:", word_accuracy)
 
 with open("results.txt", "a") as file:
-    file.write(f"{dataset_base}_{base_type}_| Accuracy: {word_accuracy}/n")
+    file.write(f"{dataset_base}_{base_type}_| Accuracy: {word_accuracy}
+")
