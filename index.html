@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Áudios CONTRASTIVE_DASR</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { margin-bottom: 10px; }
+    h2 { margin-top: 30px; }
+    .audio-group { margin-bottom: 20px; }
+    audio { display: block; margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>🔊 Áudios por Nível de Inteligibilidade</h1>
+  <div id="audioContainer">Carregando áudios...</div>
+
+  <script>
+    const repoOwner = 'ragracelli';
+    const repoName = 'CONTRASTIVE_DASR';
+    const audioPath = 'wav_samples';
+    const apiURL = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${audioPath}`;
+    const rawBaseURL = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${audioPath}`;
+
+    async function fetchAudioFiles() {
+      const container = document.getElementById('audioContainer');
+      container.innerHTML = '';
+
+      try {
+        const res = await fetch(apiURL);
+        const folders = await res.json();
+
+        for (const folder of folders) {
+          if (folder.type === 'dir') {
+            const folderName = folder.name;
+            const folderRes = await fetch(folder.url);
+            const files = await folderRes.json();
+
+            const group = document.createElement('div');
+            group.className = 'audio-group';
+            group.innerHTML = `<h2>${folderName}</h2>`;
+
+            files.forEach(file => {
+              if (file.name.endsWith('.wav')) {
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = `${rawBaseURL}/${folderName}/${file.name}`;
+                const label = document.createElement('p');
+                label.textContent = file.name;
+                group.appendChild(label);
+                group.appendChild(audio);
+              }
+            });
+
+            container.appendChild(group);
+          }
+        }
+      } catch (error) {
+        container.innerHTML = 'Erro ao carregar os áudios.';
+        console.error(error);
+      }
+    }
+
+    fetchAudioFiles();
+  </script>
+</body>
+</html>
