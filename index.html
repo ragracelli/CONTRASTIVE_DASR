@@ -2,32 +2,97 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Áudios CONTRASTIVE_DASR</title>
+  <title>CONTRASTIVE_DASR – Áudios e Códigos</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    h1 { margin-bottom: 10px; }
-    h2 { margin-top: 30px; }
-    .audio-group { margin-bottom: 20px; }
-    audio { display: block; margin: 5px 0; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: #222;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    main {
+      display: flex;
+      flex-direction: row;
+      padding: 20px;
+    }
+    section {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      max-height: 90vh;
+    }
+    h2 {
+      margin-top: 20px;
+    }
+    .audio-group {
+      margin-bottom: 20px;
+    }
+    audio {
+      display: block;
+      margin: 5px 0;
+    }
+    button {
+      margin-top: 10px;
+      display: block;
+    }
+    pre {
+      display: none;
+      background: #f4f4f4;
+      padding: 10px;
+      border: 1px solid #ccc;
+      white-space: pre-wrap;
+    }
+    #audioContainer h2 {
+      color: #2c3e50;
+    }
+    #codeContainer h2 {
+      color: #8e44ad;
+    }
   </style>
 </head>
 <body>
-  <h1>🔊 Áudios por Nível de Inteligibilidade</h1>
-  <div id="audioContainer">Carregando áudios...</div>
+  <header>
+    <h1>🔊 CONTRASTIVE_DASR – Áudios e Códigos</h1>
+  </header>
+
+  <main>
+    <!-- Áudios à esquerda -->
+    <section id="audioContainer">
+      <h2>Áudios por Nível</h2>
+      <p>Carregando áudios...</p>
+    </section>
+
+    <!-- Códigos à direita -->
+    <section id="codeContainer">
+      <h2>Códigos do Repositório</h2>
+      <p>Carregando códigos...</p>
+    </section>
+  </main>
 
   <script>
     const repoOwner = 'ragracelli';
     const repoName = 'CONTRASTIVE_DASR';
     const audioPath = 'wav_samples';
-    const apiURL = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${audioPath}`;
-    const rawBaseURL = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${audioPath}`;
+    const codePath = ''; // raiz do repositório
 
+    const rawBaseURL = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/${audioPath}`;
+    const audioApiURL = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${audioPath}`;
+    const codeApiURL = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${codePath}`;
+
+    const audioContainer = document.getElementById('audioContainer');
+    const codeContainer = document.getElementById('codeContainer');
+
+    // 🎵 Buscar áudios por diretório
     async function fetchAudioFiles() {
-      const container = document.getElementById('audioContainer');
-      container.innerHTML = '';
+      audioContainer.innerHTML = '<h2>Áudios por Nível</h2>';
 
       try {
-        const res = await fetch(apiURL);
+        const res = await fetch(audioApiURL);
         const folders = await res.json();
 
         for (const folder of folders) {
@@ -38,7 +103,7 @@
 
             const group = document.createElement('div');
             group.className = 'audio-group';
-            group.innerHTML = `<h2>${folderName}</h2>`;
+            group.innerHTML = `<h3>${folderName}</h3>`;
 
             files.forEach(file => {
               if (file.name.endsWith('.wav')) {
@@ -52,16 +117,51 @@
               }
             });
 
-            container.appendChild(group);
+            audioContainer.appendChild(group);
           }
         }
       } catch (error) {
-        container.innerHTML = 'Erro ao carregar os áudios.';
+        audioContainer.innerHTML = 'Erro ao carregar os áudios.';
+        console.error(error);
+      }
+    }
+
+    // 📄 Buscar e exibir códigos
+    async function fetchCodeFiles() {
+      codeContainer.innerHTML = '<h2>Códigos do Repositório</h2>';
+
+      try {
+        const res = await fetch(codeApiURL);
+        const files = await res.json();
+
+        files.forEach(file => {
+          if (file.name.endsWith('.py') || file.name.endsWith('.sh')) {
+            const button = document.createElement('button');
+            button.textContent = `Ver ${file.name}`;
+
+            const codeBlock = document.createElement('pre');
+
+            button.onclick = async () => {
+              if (codeBlock.textContent === '') {
+                const fileRes = await fetch(file.download_url);
+                const text = await fileRes.text();
+                codeBlock.textContent = text;
+              }
+              codeBlock.style.display = codeBlock.style.display === 'none' ? 'block' : 'none';
+            };
+
+            codeContainer.appendChild(button);
+            codeContainer.appendChild(codeBlock);
+          }
+        });
+      } catch (error) {
+        codeContainer.innerHTML = 'Erro ao carregar os códigos.';
         console.error(error);
       }
     }
 
     fetchAudioFiles();
+    fetchCodeFiles();
   </script>
 </body>
 </html>
