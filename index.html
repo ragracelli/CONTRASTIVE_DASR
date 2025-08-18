@@ -63,7 +63,7 @@
   <main>
     <!-- Áudios à esquerda -->
     <section id="audioContainer">
-      <h2>Áudios por Nível</h2>
+      <h2>Áudios por Nível de Inteligibilidade ("Command")</h2>
       <p>Carregando áudios...</p>
     </section>
 
@@ -89,7 +89,7 @@
 
     // 🎵 Buscar áudios por diretório
     async function fetchAudioFiles() {
-      audioContainer.innerHTML = '<h2>Áudios por Nível</h2>';
+      audioContainer.innerHTML = '<h2>Áudios por Nível de Inteligibilidade ("Command")</h2>';
 
       try {
         const res = await fetch(audioApiURL);
